@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" rel="stylesheet"> 
+    <title>Multiplayer Quiz Game</title>
+    <style>
+        /* Reset some default styles */
+        body, h1, h2 {
+            margin:  0;
+            padding: 0;
+        }
+
+        /* Set a background color and font for the body */
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Poppins', sans-serif;
+            align-items: center;
+            position: relative; /* Make body a positioned element */
+            overflow: hidden; /* Prevent scrolling */
+        }
+
+        /* Video background styling */
+        #background-video {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            z-index: -1; /* Place video behind other elements */
+            transform: translate(-50%, -50%);
+            object-fit: cover; /* Cover the entire background */
+        }
+
+        /* Style the game container */
+        #game-container {
+            background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent background */
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            width: 400px;
+            text-align: center;
+            z-index: 1; /* Ensure the game container is above the video */
+        }
+
+        /* Button container styling */
+        .btn-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px; /* Space between buttons */
+        }
+
+        /* General button styling */
+        .btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        /* Button hover effect */
+        .btn:hover {
+            background-color: #0056b3;
+            transform: scale(1.05); /* Slightly enlarge on hover */
+        }
+
+        /* Avatar display styling */
+        #avatar-display {
+            margin: 20px 0;
+        }
+
+        #avatar-img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 2px solid #007BFF; /* Blue border */
+        }
+    </style>
+</head>
+<body>
+    <video autoplay muted loop id="background-video">
+        <source src="finalsimages/Gemini8.mp4" type="video/mp4"> <!-- Replace with your video path -->
+        Your browser does not support the video tag.
+    </video>
+    
+    <div id="game-container">
+        <h1>Multiplayer Quiz Game</h1>
+        
+        <div id="avatar-display">
+            <img id="avatar-img" src="" alt="Player Avatar">
+        </div>
+
+        <div id="player-container">
+            <h2>Current Player: <span id="current-player"></span></h2>
+            <input type="text" id="player-name" placeholder="Enter Player Name" />
+            <button id="add-player" class="btn">Add Player</button>
+        </div>
+        
+        <div id="question-container" style="display: none;">
+            <h2 id="question"></h2>
+            <div id="answer-buttons" class="btn-container"></div>
+        </div>
+
+        <div id="score-container" style="display: none;">
+            <h2>Scores:</h2>
+            <div id="scores"></div>
+            <button id="restart-button" class="btn">Restart Game</button>
+            <button id="finish-button" class="btn">Finish</button>
+            <button id="exit-button" class="btn btn-danger">Exit</button>
+            <div id="previous-s cores-container" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const selectedAvatar = urlParams.get('avatar');
+        document.getElementById('avatar-img').src = selectedAvatar;
+
+        const questions = [
+            {
+                question: 'Who is the first programmer?',
+                answers: [
+                    { text: 'Linus Torvalds', correct: false },
+                    { text: 'Guido van Rossum', correct: false },
+                    { text: 'Ada Lovelace', correct: true },
+                    { text: 'Grace Hopper', correct: false }
+                ]
+            },
+            {
+                question: 'Which planet is known as the Red Planet?',
+                answers: [
+                    { text: 'Earth', correct: false },
+                    { text: 'Mars', correct: true },
+                    { text: 'Jupiter', correct: false },
+                    { text: 'Saturn', correct: false }
+                ]
+            },
+            {
+                question: 'Who wrote "To be, or not to be"?',
+                answers: [
+                    { text: 'Charles Dickens', correct: false },
+                    { text: 'William Shakespeare', correct: true },
+                    { text: 'Mark Twain', correct: false },
+                    { text: 'Ernest Hemingway', correct: false }
+                ]
+            }
+        ];
+
+        let currentQuestionIndex = 0;
+        let currentPlayerIndex = 0;
+        const players = [];
+        const scores = {}; // Initialize scores object
+        let gameFinished = false; // Track if the game has finished
+
+        // Event listener for adding a player
+        document.getElementById('add-player').addEventListener('click', () => {
+            const playerName = document.getElementById('player-name').value.trim();
+            if (playerName && !players.includes(playerName)) {
+                players.push(playerName);
+                scores[playerName] = scores[playerName] || 0; // Initialize score for the new player if not already set
+                document.getElementById('player-name').value = '';
+                currentPlayerIndex = players.length - 1; // Set current player index to the newly added player
+                updateCurrentPlayer(); // Update current player display immediately after adding
+                if (players.length === 1) {
+                    startGame(); // Start the game if it's the first player added
+                }
+            }
+        });
+
+        // Function to update the current player display
+        function updateCurrentPlayer() {
+            document.getElementById('current-player').innerText = players[currentPlayerIndex] || 'No Players';
+            document.getElementById('question-container').style.display = players.length > 0 ? 'block' : 'none';
+            if (players.length > 0 && !gameFinished) {
+                showQuestion(questions[currentQuestionIndex]);
+            }
+        }
+
+        // Function to start the game
+        function startGame() {
+            currentQuestionIndex = 0;
+            currentPlayerIndex = 0;
+            gameFinished = false; // Reset game finished status
+            document.getElementById('score-container').style.display = 'none';
+            document.getElementById('question-container').style.display = 'block';
+            updateCurrentPlayer();
+        }
+
+        // Function to display the current question
+        function showQuestion(question) {
+            document.getElementById('question').innerText = question.question;
+            const answerButtons = document.getElementById('answer-buttons');
+            answerButtons.innerHTML = '';
+            question.answers.forEach(answer => {
+                const button = document.createElement('button');
+                button.innerText = answer.text;
+                button.classList.add('btn');
+                button.addEventListener('click', () => handleAnswerSelection(answer));
+                answerButtons.appendChild(button);
+            });
+        }
+
+        // Function to handle answer selection
+        function handleAnswerSelection(answer) {
+            if (answer.correct && !gameFinished) {
+                scores[players[currentPlayerIndex]]++; // Increment score for the current player
+            }
+            currentQuestionIndex++;
+            if (currentQuestionIndex < questions.length) {
+                showQuestion(questions[currentQuestionIndex]);
+            } else {
+                displayScores(); // Call to display scores at the end of the quiz
+            }
+        }
+
+        // Function to display scores at the end of the quiz
+        function displayScores() {
+            document.getElementById('question-container').style.display = 'none';
+            const scoresContainer = document.getElementById('scores');
+            scoresContainer.innerHTML = ''; // Clear previous scores display
+            for (const player in scores) {
+                scoresContainer.innerHTML += `<p>${player}: ${scores[player]}</p>`; // Display each player's score
+            }
+            document.getElementById('score-container').style.display = 'block'; gameFinished = true; // Mark the game as finished
+        }
+
+        // Event listener for the restart button
+        document.getElementById('restart-button').addEventListener('click', () => {
+            currentQuestionIndex = 0; 
+            currentPlayerIndex = 0; // Reset the current player index to 0
+            gameFinished = false; // Reset game finished status
+            document.getElementById('score-container').style.display = 'none'; // Hide score container
+            document.getElementById('question-container').style.display = 'none'; // Hide question container
+            document.getElementById('player-container').style.display = 'block'; // Show player input area
+            updateCurrentPlayer(); // Update current player display
+        });
+
+        // Event listener for the finish button
+        document.getElementById('finish-button').addEventListener('click', () => {
+            displayPreviousScores(); // Display previous scores
+            document.getElementById('question-container').style.display = 'none'; 
+        });
+
+        // Function to display previous scores
+        function displayPreviousScores() {
+            const scoresContainer = document.getElementById('previous-scores-container');
+            scoresContainer.innerHTML = ''; // Clear previous scores display
+
+            for (const player in scores) {
+                const scoreElement = document.createElement('div');
+                scoreElement.textContent = `${player}: ${scores[player]}`;
+                scoresContainer.appendChild(scoreElement);
+            }
+
+            scoresContainer.style.display = 'block'; // Show the scores container
+        }
+        document.getElementById('exit-button').addEventListener('click', () => {
+    window.location.href = 'index.html'; // Redirect to avatar selection page
+});
+
+// Function to reset the game state
+function resetGame() {
+    currentQuestionIndex = 0;
+    currentPlayerIndex = 0;
+    players.length = 0; // Clear players array
+    for (const player in scores) {
+        delete scores[player]; // Clear scores
+    }
+    document.getElementById('scores').innerHTML = ''; // Clear displayed scores
+    document.getElementById('player-name').value = ''; // Clear player name input
+    document.getElementById('current-player').innerText = ''; // Clear current player display
+}
+    </script>
+</body>
+</html>
